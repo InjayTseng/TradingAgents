@@ -171,7 +171,10 @@ def get_polymarket_price_history(
         "interval": "1d",
     }
 
-    data = _clob_get("/prices-history", params=params, cache_seconds=300)
+    try:
+        data = _clob_get("/prices-history", params=params, cache_seconds=300)
+    except Exception as e:
+        return f"Price history unavailable for this market (API error: {e}). The market may be too new or the date range too large."
 
     history = data.get("history", [])
     if not history:
@@ -219,7 +222,10 @@ def get_polymarket_order_book(market_id: str) -> str:
 
     token_id = clob_ids[0]
 
-    data = _clob_get("/book", params={"token_id": token_id}, cache_seconds=30)
+    try:
+        data = _clob_get("/book", params={"token_id": token_id}, cache_seconds=30)
+    except Exception as e:
+        return f"Order book unavailable for this market (API error: {e})."
 
     bids = data.get("bids", [])
     asks = data.get("asks", [])
@@ -289,9 +295,12 @@ def get_polymarket_resolution_criteria(market_id: str) -> str:
 
 def get_polymarket_event_context(event_id: str) -> str:
     """Get all markets grouped under a prediction market event."""
-    data = _gamma_get(f"/events/{event_id}")
+    try:
+        data = _gamma_get(f"/events/{event_id}")
+    except Exception:
+        return f"No event found with ID: {event_id}. Note: this may be a market ID, not an event ID. Use get_market_info with the market ID instead."
     if not data:
-        return f"No event found with ID: {event_id}"
+        return f"No event found with ID: {event_id}. Note: this may be a market ID, not an event ID. Use get_market_info with the market ID instead."
 
     lines = [
         f"Event: {data.get('title', 'N/A')}",
@@ -324,10 +333,10 @@ def get_polymarket_event_context(event_id: str) -> str:
 def get_polymarket_related_markets(query: str, limit: int = 5) -> str:
     """Search for related prediction market events."""
     params = {
-        "active": True,
-        "closed": False,
-        "order": "volume_24hr",
-        "ascending": False,
+        "active": "true",
+        "closed": "false",
+        "order": "volume24hr",
+        "ascending": "false",
         "limit": limit,
     }
 
@@ -358,8 +367,16 @@ def get_polymarket_related_markets(query: str, limit: int = 5) -> str:
 
 def get_polymarket_search(query: str, limit: int = 10) -> str:
     """Search Polymarket for markets matching a query."""
-    params = {"query": query, "limit": limit}
-    data = _gamma_get("/public-search", params=params, cache_seconds=300)
+    params = {
+        "active": "true",
+        "closed": "false",
+        "order": "volume24hr",
+        "ascending": "false",
+        "limit": limit,
+    }
+    if query:
+        params["tag"] = query
+    data = _gamma_get("/markets", params=params, cache_seconds=300)
 
     if not data:
         return f"No results found for: {query}"
